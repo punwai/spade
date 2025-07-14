@@ -1,11 +1,11 @@
-use std::{fmt::Error, thread::current};
+use anyhow::Error;
 
 use crate::token;
 
 #[derive(
     PartialEq,
     Eq,
-    Debug
+    Debug, Clone, Copy
 )]
 pub enum TokenType {
     LeftParen, // {
@@ -80,14 +80,15 @@ pub fn match_reserved(str: &str) -> Option<TokenType> {
     return Some(x);
 }
 
+#[derive(Clone, Debug)]
 pub struct Token {
-    token_type: TokenType,
-    lexeme: String,
-    literal: Option<Literal>,
-    line: usize,
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub literal: Option<Literal>,
+    pub line: usize,
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Clone)]
 pub enum Literal {
     String(String),
     Number(f64),
@@ -190,7 +191,7 @@ impl Scanner {
             self.advance();
         }
         if self.is_at_end() {
-            return Err(Error);
+            return Err(anyhow::anyhow!("Unterminated string"));
         }
         println!("string:{}", self.source[self.start + 1..self.current].to_string());
         let literal = Some(Literal::String(
@@ -268,15 +269,13 @@ impl Scanner {
                 return self.scan_string()
             },
             _ => {
-                if let Some(c) = self.peek() {
-                    if is_digit(c) {
-                        return Ok(self.scan_number());
-                    }
-                    if is_alpha(c) {
-                        return Ok(Some(self.scan_identifier()));
-                    }
+                if is_digit(c) {
+                    return Ok(self.scan_number());
                 }
-                return Err(Error)
+                if is_alpha(c) {
+                    return Ok(Some(self.scan_identifier()));
+                }
+                return Err(anyhow::anyhow!("Unexpected character: {}", c))
             }
         };
         return Ok(next_token);
@@ -312,12 +311,14 @@ impl Scanner {
         // If the '.' is valid, we continue to decode it.
         if self.peek() == Some('.') {
             if let Some(c) = self.look(1) {
-                self.advance();
-                while let Some(c) = self.peek() {
-                    if !is_digit(c) {
-                        break;
-                    }
+                if is_digit(c) {
                     self.advance();
+                    while let Some(c) = self.peek() {
+                        if !is_digit(c) {
+                            break;
+                        }
+                        self.advance();
+                    }
                 }
             }
         }
@@ -334,6 +335,8 @@ pub fn scan_tokens(source: String) -> Result<Vec<Token>, Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::string;
+
     use super::*;
     
     fn match_types(tokens: Vec<Token>, types: Vec<TokenType>) {
@@ -391,6 +394,12 @@ mod tests {
         let source: String = "34.33".to_string();
         let string_token = &scan_tokens(source).unwrap()[0];
         assert_eq!(string_token.literal, Some(Literal::Number(34.33f64)));
+    }
+
+    #[test]
+    fn test_arithmetic() {
+        let source: String = "3+4".to_string();
+        let string_token = &scan_tokens(source).unwrap();
     }
 
     #[test]
