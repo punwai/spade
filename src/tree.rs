@@ -1,5 +1,9 @@
+use core::error;
+
+use anyhow::Result;
+
 use crate::token::{self, Token, TokenType};
-use crate::expressions::{Expr, Literal, BinaryOp, UnaryOp};
+use crate::expressions::{BinaryOp, Expr, Literal, Statement, UnaryOp};
 
 struct Parser {
     tokens: Vec<Token>,
@@ -51,11 +55,68 @@ impl Parser {
         false
     }
 
+    fn consume(&mut self, types: &[TokenType], error_message: String) -> Result<Token, String>{
+        if !self.match_token(types) {
+            return Err(error_message);
+        }
+        Ok(self.previous().clone())
+    }
+
+    fn print_statement(&mut self) -> Result<Statement, String> {
+        let value = match self.expression() {
+            Ok(val) => val,
+            Err(e) => return Err(e)
+        };
+        if let Err(error) = self.consume(&[TokenType::Semicolon], "Expect ';' after value.".to_string()) {
+            return Err(error);
+        }
+        Ok(Statement::Print(value))
+    }
+
+    fn expression_statement(&mut self) -> Result<Statement, String> {
+        let value = match self.expression() {
+            Ok(val) => val,
+            Err(e) => return Err(e)
+        };
+        Ok(Statement::Expression(value))
+    }
+
+    fn var_declaration(&mut self) -> Result<Statement, String> {
+        let name = self.consume(&[TokenType::Identifier], "'let' assignment must be provided a name".to_string())?;
+        self.consume(&[TokenType::Equal], "'let' assignment must be followed by '='".to_string())?;
+
+        if self.match_token(&[TokenType::Semicolon]) {
+            return Ok(Statement::VarDec { 
+                name: name.lexeme, 
+                initializer: None
+            })
+        }
+        println!("here now");
+
+        let expr = self.expression()?;
+        self.consume(&[TokenType::Semicolon], "Delaration must end with semicolon".to_string())?;
+
+        return Ok(Statement::VarDec {
+            name: name.lexeme,
+            initializer: Some(expr),
+        })
+    }
+ 
+
+
+    fn statement(&mut self) -> Result<Statement, String> {
+        if self.match_token(&[TokenType::Print]) {
+            return self.print_statement();
+        }
+        return self.expression_statement()
+    }
+
     fn expression(&mut self) -> Result<Expr, String> {
         self.equality()
     }
 
     fn equality(&mut self) -> Result<Expr, String> {
+        println!("got to equality");
         let mut expr = self.comparison()?;
 
         while self.match_token(&[TokenType::BangEqual, TokenType::EqualEqual]) {
@@ -76,6 +137,7 @@ impl Parser {
     }
 
     fn comparison(&mut self) -> Result<Expr, String> {
+        println!("got to comparison");
         let mut expr = self.term()?;
 
         while self.match_token(&[TokenType::Greater, TokenType::GreaterEqual, TokenType::Less, TokenType::LessEqual]) {
@@ -98,6 +160,7 @@ impl Parser {
     }
 
     fn term(&mut self) -> Result<Expr, String> {
+        println!("got to term");
         let mut expr = self.factor()?;
 
         while self.match_token(&[TokenType::Minus, TokenType::Plus]) {
@@ -118,6 +181,7 @@ impl Parser {
     }
 
     fn factor(&mut self) -> Result<Expr, String> {
+        println!("got to factor");
         let mut expr = self.unary()?;
 
         while self.match_token(&[TokenType::Slash, TokenType::Star]) {
@@ -138,6 +202,7 @@ impl Parser {
     }
 
     fn unary(&mut self) -> Result<Expr, String> {
+        println!("got to unary");
         if self.match_token(&[TokenType::Bang, TokenType::Minus]) {
             let operator = match self.previous().token_type {
                 TokenType::Bang => UnaryOp::Not,
@@ -168,11 +233,16 @@ impl Parser {
         }
 
         if self.match_token(&[TokenType::Number]) {
+            println!("got to number match");
             if let Some(crate::token::Literal::Number(value)) = &self.previous().literal {
                 return Ok(Expr::Literal(Literal::Number(*value)));
             } else {
                 return Err("Number token without number literal".to_string());
             }
+        }
+
+        if self.match_token(&[TokenType::Identifier]) {
+            return Ok(Expr::Literal(Literal::Var(self.previous().clone())));
         }
 
         if self.match_token(&[TokenType::String]) {
@@ -193,12 +263,41 @@ impl Parser {
 
         Err("Expect expression".to_string())
     }
+
+    fn block(&mut self) -> Result<Vec<Statement>, String> {
+        let mut statements: Vec<Statement> = vec![];
+        while !self.is_at_end() && !self.check(TokenType::RightBrace) {
+            let stmt = self.statement()?;
+            statements.push(stmt);
+        }
+        Ok(statements)
+    }
+
+
+    pub fn parse_stmt(&mut self)  -> Result<Vec<Statement>, String> {
+        let mut statements: Vec<Statement> = vec![];
+        while !self.is_at_end() {
+            let stmt = self.statement()?;
+            statements.push(stmt);
+        }
+        Ok(statements)
+    }
+
+
+
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Expr, String> {
     let mut parser = Parser::new(tokens);
     parser.expression()
 }
+
+
+pub fn parse_stmt(tokens: Vec<Token>) -> Result<Vec<Statement>, String> {
+    let mut parser = Parser::new(tokens);
+    parser.parse_stmt()
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -234,4 +333,24 @@ mod tests {
         };
         assert_eq!(expr.to_string(), ground_truth_expr.to_string());
     }
+
+    #[test]
+    fn test_variable_statement() {
+        let tokens = scan_tokens("let dog = 3; print dog;".to_string()).unwrap();
+        let declarations = parse_stmt(tokens).unwrap();
+        let ground_truth_declaration = vec![
+            Statement::VarDec { name: "dog".to_string(), initializer: Some(Expr::Literal(Literal::Number(3f64))) },
+            Statement::Print(
+                    Expr::Literal(Literal::Var(Token {
+                        token_type: crate::token::TokenType::Identifier,
+                        lexeme: "dog".to_string(),
+                        literal: Some(crate::token::Literal::Number(3f64)),
+                        line: 1
+                    }))
+                )
+        ];
+        assert_eq!(declarations[0].to_string(), ground_truth_declaration[0].to_string());
+        assert_eq!(declarations[1].to_string(), ground_truth_declaration[1].to_string());
+    }
+
 }

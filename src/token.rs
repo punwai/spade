@@ -49,7 +49,7 @@ pub enum TokenType {
     Super,
     This,
     True,
-    Var,
+    Let,
     While,
     EOF
 }
@@ -71,7 +71,7 @@ pub fn match_reserved(str: &str) -> Option<TokenType> {
         "super" => TokenType::Super,
         "this" => TokenType::This,
         "true" => TokenType::True,
-        "var" => TokenType::Var,
+        "let" => TokenType::Let,
         "while" => TokenType::While,
         _ => {
             return None;
@@ -205,15 +205,19 @@ impl Scanner {
      * Either standard identifier or reserved identifier.
      */
     fn scan_identifier(&mut self) -> Token {
+        println!("scanning identifier");
         while let Some(c) = self.peek() {
             if is_alphanumeric(c) {
                 self.advance();
+            } else {
+                break;
             }
         }
         let lexeme = &self.source[self.start..self.current];
         if let Some(reserved_token) = match_reserved(lexeme) {
             return self.get_token_simple(reserved_token);
         }
+        println!("scanned {}", lexeme);
         self.get_token_simple(TokenType::Identifier)
     }
 

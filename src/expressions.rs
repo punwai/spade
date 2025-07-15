@@ -1,5 +1,7 @@
 use std::fmt;
 
+use crate::token::Token;
+
 #[derive(Clone, Copy, Debug)]
 pub enum BinaryOp {
     Multiply,
@@ -55,7 +57,8 @@ pub enum Literal {
     Nil,
     Number(f64),
     String(String),
-    Bool(bool)
+    Bool(bool),
+    Var(Token),
 }
 
 impl fmt::Display for Literal {
@@ -65,6 +68,7 @@ impl fmt::Display for Literal {
             Literal::Number(n) => write!(f, "{}", n),
             Literal::String(s) => write!(f, "\"{}\"", s),
             Literal::Bool(b) => write!(f, "{}", b),
+            Literal::Var(b) => write!(f, "getvar {}", b.lexeme),
         }
     }
 }
@@ -74,7 +78,18 @@ pub enum Expr {
     Binary { left: Box<Expr>, op: BinaryOp, right: Box<Expr> },
     Unary { op: UnaryOp, expr: Box<Expr> },
     Literal(Literal),
-    Grouping(Box<Expr>)
+    Grouping(Box<Expr>),
+    Assign { token: Token, value: Box<Expr> },
+}
+
+pub enum Statement {
+    Expression(Expr),
+    Print(Expr),
+    Block(Vec<Statement>),
+    VarDec {
+        name: String,
+        initializer: Option<Expr>,
+    },
 }
 
 impl fmt::Display for Expr {
@@ -91,7 +106,32 @@ impl fmt::Display for Expr {
             },
             Expr::Grouping(expr) => {
                 write!(f, "(group {})", expr)
+            },
+            Expr::Assign { token, value } => {
+                write!(f, "(assign {} {})", token.lexeme, value)
             }
+        }
+    }
+}
+
+impl fmt::Display for Statement {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Statement::VarDec { name, initializer } => {
+                match initializer {
+                    Some(expr) => write!(f, "(var {} {})", name, expr),
+                    None => write!(f, "(var {})", name),
+                }
+            },
+            Statement::Block(statements) => {
+                write!(f, "(block {})", statements.iter().map(|s| s.to_string()).collect::<Vec<String>>().join(" "))
+            },
+            Statement::Expression(expr) => {
+                write!(f, "(expr {})", expr)
+            },
+            Statement::Print(expr) => {
+                write!(f, "(print {})", expr)
+            },
         }
     }
 }
