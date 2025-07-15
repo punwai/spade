@@ -42,7 +42,6 @@ impl Value {
     }
 }
 
-
 pub fn evaluate_statement(stmt: Statement, env: &mut Environment) -> Result<Value, SpadeError> {
     match stmt {
         Statement::Expression(expr) => {
