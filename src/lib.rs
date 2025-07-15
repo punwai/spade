@@ -4,3 +4,4 @@ pub mod expressions;
 pub mod evaluate;
 pub mod interpreter;
 pub mod environment;
+pub mod error;

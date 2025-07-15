@@ -1,3 +1,4 @@
+use crate::error::SpadeError;
 use crate::expressions::Statement;
 use crate::evaluate::{evaluate_expression, evaluate_statement, Value};
 use crate::environment::Environment;
@@ -21,7 +22,10 @@ impl Interpreter {
     }
 
     fn execute(&mut self, statement: Statement) -> Result<(), String> {
-        evaluate_statement(statement, &mut self.env)?;
+        evaluate_statement(statement, &mut self.env).map_err(|e| match e {
+            SpadeError::RuntimeError { message, line } => format!("{} at line {}", message, line),
+            SpadeError::Return(_) => unreachable!(),
+        })?;
         Ok(())
     }
 
@@ -37,6 +41,7 @@ impl Interpreter {
                 }
             },
             Value::String(s) => s,
+            Value::Function(function) => format!("fn {:?}", function),
         }
     }
 }
@@ -136,6 +141,15 @@ mod tests {
     fn test_if_statement() {
         let mut interpreter = Interpreter::new();
         let code = "if (false) { print \"true\"; } else { print \"false\"; }".to_string();
+        let tokens = scan_tokens(code.to_string()).unwrap();
+        let statements = parse_stmt(tokens).unwrap();
+        let result = interpreter.interpret(statements);
+    }
+
+    #[test]
+    fn test_return_statement() {
+        let mut interpreter = Interpreter::new();
+        let code = "return 1;".to_string();
         let tokens = scan_tokens(code.to_string()).unwrap();
         let statements = parse_stmt(tokens).unwrap();
         let result = interpreter.interpret(statements);

@@ -80,6 +80,7 @@ pub enum Expr {
     Literal(Literal),
     Grouping(Box<Expr>),
     Assign { token: Token, value: Box<Expr> },
+    Call { callee: Box<Expr>, arguments: Vec<Expr> },
 }
 
 #[derive(Clone, Debug)]
@@ -96,6 +97,12 @@ pub enum Statement {
         then_branch: Box<Statement>,
         else_branch: Option<Box<Statement>>,
     },
+    Fn {
+        name: String,
+        parameters: Vec<String>,
+        body: Box<Statement>,
+    },
+    Return(Option<Expr>),
 }
 
 impl fmt::Display for Expr {
@@ -115,7 +122,10 @@ impl fmt::Display for Expr {
             },
             Expr::Assign { token, value } => {
                 write!(f, "(assign {} {})", token.lexeme, value)
-            }
+            },
+            Expr::Call { callee, arguments } => {
+                write!(f, "(call {} {})", callee, arguments.iter().map(|a| a.to_string()).collect::<Vec<String>>().join(", "))
+            },
         }
     }
 }
@@ -140,6 +150,15 @@ impl fmt::Display for Statement {
             },
             Statement::If { condition, then_branch, else_branch } => {
                 write!(f, "(if {} {} {})", condition, then_branch, else_branch.as_ref().map(|b| b.to_string()).unwrap_or("".to_string()))
+            },
+            Statement::Fn { name, parameters, body } => {
+                write!(f, "(fn {} {} {})", name, parameters.iter().map(|p| p.to_string()).collect::<Vec<String>>().join(", "), body)
+            },
+            Statement::Return(expr) => {
+                match expr {
+                    Some(expr) => write!(f, "(return {})", expr),
+                    None => write!(f, "(return)"),
+                }
             },
         }
     }

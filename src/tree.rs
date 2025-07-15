@@ -123,6 +123,33 @@ impl Parser {
         Ok(Statement::If { condition, then_branch, else_branch })
     }
 
+    fn fn_statement(&mut self) -> Result<Statement, String> {
+        let name = self.consume(&[TokenType::Identifier], "Expect function name".to_string())?;
+        self.consume(&[TokenType::LeftParen], "Expect '(' after function name".to_string())?;
+
+        let mut parameters: Vec<String> = vec![];
+        while !self.is_at_end() && !self.check(TokenType::RightParen) {
+            let parameter = self.consume(&[TokenType::Identifier], "Expect parameter name".to_string())?;
+            parameters.push(parameter.lexeme);
+            if !self.match_token(&[TokenType::Comma]) {
+                break;
+            }
+        }
+        self.consume(&[TokenType::RightParen], "Expect ')' after parameters".to_string())?;
+        let body = Box::new(self.block_statement()?);
+        Ok(Statement::Fn { name: name.lexeme, parameters, body })
+    }
+
+    fn return_statement(&mut self) -> Result<Statement, String> {
+        if self.match_token(&[TokenType::Semicolon]) {
+            Ok(Statement::Return(None))
+        } else {
+            let expr = self.expression()?;
+            self.consume(&[TokenType::Semicolon], "Expect ';' after return value".to_string())?;
+            Ok(Statement::Return(Some(expr)))
+        }
+    }
+
     fn statement(&mut self) -> Result<Statement, String> {
         if self.match_token(&[TokenType::Print]) {
             return self.print_statement();
@@ -132,6 +159,10 @@ impl Parser {
             return self.block_statement();
         } else if self.match_token(&[TokenType::If]) {
             return self.if_statement();
+        } else if self.match_token(&[TokenType::Fn]) {  
+            return self.fn_statement();
+        } else if self.match_token(&[TokenType::Return]) {
+            return self.return_statement();
         }
 
         return self.expression_statement()
@@ -242,7 +273,7 @@ impl Parser {
             });
         }
 
-        self.primary()
+        self.call()
     }
 
     fn primary(&mut self) -> Result<Expr, String> {
@@ -309,8 +340,29 @@ impl Parser {
         Ok(statements)
     }
 
+    fn end_arguments(&mut self) -> Result<Vec<Expr>, String> {
+        let mut arguments: Vec<Expr> = vec![];
+        while !self.is_at_end() && !self.check(TokenType::RightParen) {
+            let expr = self.expression()?;
+            arguments.push(expr);
+            if !self.match_token(&[TokenType::Comma]) {
+                break;
+            }
+        }
+        self.consume(&[TokenType::RightParen], "Expect ')' after arguments".to_string())?;
+        Ok(arguments)
+    }
 
-
+    fn call(&mut self) -> Result<Expr, String> {
+        // for functions, the callee can either be an identifier,
+        // or an expression that evaluates to a function.
+        let mut expr = self.primary()?;
+        while self.match_token(&[TokenType::LeftParen]) {
+            let arguments = self.end_arguments()?;
+            expr = Expr::Call { callee: Box::new(expr), arguments };
+        }
+        Ok(expr)
+    }
 }
 
 pub fn parse(tokens: Vec<Token>) -> Result<Expr, String> {
