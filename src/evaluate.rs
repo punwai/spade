@@ -50,6 +50,16 @@ pub fn evaluate_statement(stmt: Statement, env: &mut Environment) -> Result<Valu
             env.define(name, value);
             Ok(Value::Nil)
         },
+        Statement::If { condition, then_branch, else_branch } => {
+            let condition_val = evaluate_expression(condition, env)?;
+            if condition_val.is_truthy() {
+                evaluate_statement(*then_branch, env)
+            } else if let Some(else_branch) = else_branch {
+                evaluate_statement(*else_branch, env)
+            } else {
+                Ok(Value::Nil)
+            }
+        },
     }
 }
 
@@ -79,7 +89,14 @@ pub fn evaluate_expression(expr: Expr, env: &mut Environment) -> Result<Value, S
                 },
             }
         },
-        Expr::Literal(literal) => Ok(literal_to_value(literal)),
+        Expr::Literal(literal) => {
+            if let Literal::Var(token) = literal {
+                let value = env.get(&token.lexeme)?;
+                Ok(value)
+            } else {
+                Ok(literal_to_value(literal))
+            }
+        },
         Expr::Grouping(expr) => evaluate_expression(*expr, env),
         // Expr::Variable(token) => 
         _ => unimplemented!()
@@ -92,7 +109,7 @@ fn literal_to_value(literal: Literal) -> Value {
         Literal::Bool(b) => Value::Bool(b),
         Literal::Number(n) => Value::Number(n),
         Literal::String(s) => Value::String(s),
-        _ => unimplemented!()
+        _ => unreachable!()
     }
 }
 
@@ -312,4 +329,5 @@ mod tests {
         let result = evaluate_expression(expr, &mut env).unwrap();
         assert_eq!(matches!(result, Value::Number(14.0)), true);
     }
+
 }

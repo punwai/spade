@@ -78,6 +78,9 @@ impl Parser {
             Ok(val) => val,
             Err(e) => return Err(e)
         };
+        if let Err(error) = self.consume(&[TokenType::Semicolon], "Expect ';' after value.".to_string()) {
+            return Err(error);
+        }
         Ok(Statement::Expression(value))
     }
 
@@ -91,7 +94,6 @@ impl Parser {
                 initializer: None
             })
         }
-        println!("here now");
 
         let expr = self.expression()?;
         self.consume(&[TokenType::Semicolon], "Delaration must end with semicolon".to_string())?;
@@ -101,13 +103,37 @@ impl Parser {
             initializer: Some(expr),
         })
     }
- 
 
+    fn block_statement(&mut self) -> Result<Statement, String> {
+        let statements = self.block()?;
+        self.consume(&[TokenType::RightBrace], "Expect '}' after block".to_string())?;
+        Ok(Statement::Block(statements))
+    }
+
+    fn if_statement(&mut self) -> Result<Statement, String> {
+        self.consume(&[TokenType::LeftParen], "Expect '(' after 'if'".to_string())?;
+        let condition = self.expression()?;
+        self.consume(&[TokenType::RightParen], "Expect ')' after condition".to_string())?;
+        let then_branch = Box::new(self.statement()?);
+        let else_branch = if self.match_token(&[TokenType::Else]) {
+            Some(Box::new(self.statement()?))
+        } else {
+            None
+        };
+        Ok(Statement::If { condition, then_branch, else_branch })
+    }
 
     fn statement(&mut self) -> Result<Statement, String> {
         if self.match_token(&[TokenType::Print]) {
             return self.print_statement();
+        } else if self.match_token(&[TokenType::Let]) {
+            return self.var_declaration();
+        } else if self.match_token(&[TokenType::LeftBrace]) {
+            return self.block_statement();
+        } else if self.match_token(&[TokenType::If]) {
+            return self.if_statement();
         }
+
         return self.expression_statement()
     }
 
@@ -352,5 +378,5 @@ mod tests {
         assert_eq!(declarations[0].to_string(), ground_truth_declaration[0].to_string());
         assert_eq!(declarations[1].to_string(), ground_truth_declaration[1].to_string());
     }
-
+    
 }

@@ -44,7 +44,7 @@ impl Interpreter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expressions::{Expr, Literal, BinaryOp};
+    use crate::{expressions::{BinaryOp, Expr, Literal}, token::scan_tokens, tree::parse_stmt};
 
     #[test]
     fn test_print_statement() {
@@ -111,4 +111,34 @@ mod tests {
         let result = interpreter.interpret(vec![statement]);
         assert!(result.is_err());
     }
+
+    #[test]
+    fn test_assign_and_print() {
+        let mut interpreter = Interpreter::new();
+        let code = "let x = 1; print x;".to_string();
+        let tokens = scan_tokens(code.to_string()).unwrap();
+        let statements = parse_stmt(tokens).unwrap();
+        let result = interpreter.interpret(statements);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_assign_and_print_2() {
+        let mut interpreter = Interpreter::new();
+        let code = "let x = 1; { let y = 2; print x;} print y;".to_string();
+        let tokens = scan_tokens(code.to_string()).unwrap();
+        let statements = parse_stmt(tokens).unwrap();
+        let result = interpreter.interpret(statements);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_if_statement() {
+        let mut interpreter = Interpreter::new();
+        let code = "if (false) { print \"true\"; } else { print \"false\"; }".to_string();
+        let tokens = scan_tokens(code.to_string()).unwrap();
+        let statements = parse_stmt(tokens).unwrap();
+        let result = interpreter.interpret(statements);
+    }
 }
+

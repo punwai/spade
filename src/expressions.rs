@@ -82,6 +82,7 @@ pub enum Expr {
     Assign { token: Token, value: Box<Expr> },
 }
 
+#[derive(Clone, Debug)]
 pub enum Statement {
     Expression(Expr),
     Print(Expr),
@@ -89,6 +90,11 @@ pub enum Statement {
     VarDec {
         name: String,
         initializer: Option<Expr>,
+    },
+    If {
+        condition: Expr,
+        then_branch: Box<Statement>,
+        else_branch: Option<Box<Statement>>,
     },
 }
 
@@ -131,6 +137,9 @@ impl fmt::Display for Statement {
             },
             Statement::Print(expr) => {
                 write!(f, "(print {})", expr)
+            },
+            Statement::If { condition, then_branch, else_branch } => {
+                write!(f, "(if {} {} {})", condition, then_branch, else_branch.as_ref().map(|b| b.to_string()).unwrap_or("".to_string()))
             },
         }
     }
