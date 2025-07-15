@@ -1,8 +1,6 @@
 # spade
 
-Simple version of spade-lang. Based on the crafting interpreters.
-
-
+A simple, dynamically-typed programming language with a tree-walk interpreter, written in Rust.
 
 Examples:
 ```
